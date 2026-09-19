@@ -23,8 +23,7 @@ class User(SQLModel, table=True):
         nullable=True
     )
     
-    timezone: datetime = Field(
-        sa_column_kwargs={
-            "server_default": text("TIMEZONE('utc', now())")
-        }
-    )   
+    timezone: str = Field(
+        default="UTC",
+        nullable=False
+    )
