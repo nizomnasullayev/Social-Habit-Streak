@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
-from app.auth.schemas import UserRegister
+from app.auth.schemas import UserRegister, UserLogin
 from app.database import get_db
 from app.models.user import User
-from app.auth.security import hash_password
+from app.auth.security import hash_password, verify_password, create_access_token
 
 
 
@@ -43,4 +43,45 @@ def register(
     return {
         "message": "User registered successfully",
         "user_id": user.uid
+    }
+
+@router.post("/login")
+def login(
+    user_data: UserLogin,
+    session: Session = Depends(get_db)
+):
+    user = session.exec(
+        select(User).where(User.email == user_data.email)
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+    
+    if not user.hashed_password:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+    
+    password_is_valid = verify_password(
+        user_data.password,
+        user.hashed_password
+    )
+
+    if not password_is_valid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+    
+    access_token = create_access_token({
+        "sub": str(user.uid)
+    })
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
     }
