@@ -5,6 +5,7 @@ from app.auth.schemas import UserRegister, UserLogin
 from app.database import get_db
 from app.models.user import User
 from app.auth.security import hash_password, verify_password, create_access_token
+from app.auth.dependencies import get_current_user
 
 
 
@@ -84,4 +85,14 @@ def login(
     return {
         "access_token": access_token,
         "token_type": "bearer"
+    }
+
+@router.get("/me")
+def get_my_profile(
+    current_user: User = Depends(get_current_user)
+):
+    return {
+        "uid": current_user.uid,
+        "email": current_user.email,
+        "timezone": current_user.timezone
     }
