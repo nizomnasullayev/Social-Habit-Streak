@@ -27,7 +27,19 @@ def create_token(
     token_type: str,
     extra_claims: dict[str | Any] | None = None
 ) -> str:
-    pass
+    now = datetime.now(UTC)
+
+    payload: dict[str | Any] = {
+        "sub": str(subject),
+        "type": token_type,
+        "iat": now,
+        "exp": now + expires_delta
+    }
+
+    if extra_claims:
+        payload.update(extra_claims)
+
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_access_token():
