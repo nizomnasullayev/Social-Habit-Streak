@@ -1,35 +1,31 @@
-import secrets
 import uuid
-from datetime import datetime, UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from app.config import settings
 import jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
 
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    depracated="auto"
-)
+password_hash = PasswordHash.recommended()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return password_hash.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> str:
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return password_hash.verify(plain_password, hashed_password)
 
 
 def create_token(
     subject: str | int,
     expires_delta: timedelta,
     token_type: str,
-    extra_claims: dict[str | Any] | None = None
+    extra_claims: dict[str, Any] | None = None
 ) -> str:
+    
     now = datetime.now(UTC)
 
-    payload: dict[str | Any] = {
+    payload: dict[str, Any] = {
         "sub": str(subject),
         "type": token_type,
         "iat": now,
@@ -42,5 +38,31 @@ def create_token(
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_access_token():
-    pass
+def create_access_token(
+    subject: str | int,
+    extra_claims: dict[str, Any] | None = None
+) -> str:
+    
+    expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    return create_token(subject, expires, "access", extra_claims)
+
+
+def create_refresh_token(
+    subject: str | int,
+    jti: str | None = None
+) -> str:
+    
+    expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    token_jti = jti or str(uuid.uuid4())
+
+    return create_token(subject, expires, "refresh", {"jti": token_jti})
+
+
+def decode_token(token: str, expected_type: str) -> dict[str, Any]:
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+    if payload.get("type") != expected_type:
+        raise jwt.InvalidTokenError("Wrong token type")
+    
+    return payload
