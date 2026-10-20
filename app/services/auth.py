@@ -9,7 +9,7 @@ from app.schemas.auth import RegisterRequest
 from fastapi import HTTPException
 
 def register(data: RegisterRequest, db: Session) -> User:
-    stmt = select(User).where(User.email == data.email)
+    stmt = select(User).where(User.email == data.email.lower())
     existing_user = db.scalar(stmt)
 
     if existing_user:
@@ -29,7 +29,7 @@ def register(data: RegisterRequest, db: Session) -> User:
     return user
 
 def authenticate(email: str, password: str, db: Session) -> User:
-    stmt = select(User).where(User.email == email)
+    stmt = select(User).where(User.email == email.lower())
     user = db.scalar(stmt)
     
     if user is None or not verify_password(password, user.hashed_password):
