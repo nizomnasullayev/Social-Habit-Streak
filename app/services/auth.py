@@ -1,23 +1,38 @@
-import uuid
-import jwt
-from abc import ABC
-from datetime import UTC, datetime, timedelta
-from sqlalchemy import Select
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import settings
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from app.models.user import User
 from app.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
     hash_password,
     verify_password
 )
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.schemas.auth import RegisterRequest
+from fastapi import HTTPException
 
+def register(data: RegisterRequest, db: Session) -> User:
+    stmt = select(User).where(User.email == data.email)
+    existing_user = db.scalar(stmt)
 
-async def register(db) -> User:
-    pass
+    if existing_user:
+        raise HTTPException(400, "Email already registered")
+    
+    hashed_password = hash_password(data.password)
 
-async def login() -> User:
-    pass
+    user = User(
+        email = data.email,
+        hashed_password = hashed_password,
+        username = data.username,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def authenticate(email: str, password: str, db: Session) -> User:
+    stmt = select(User).where(User.email == email)
+    user = db.scalar(stmt)
+    
+    if user is None or not verify_password(password, user.hashed_password):
+        raise HTTPException(401, "Invalid email or password")
+    
+    return user
