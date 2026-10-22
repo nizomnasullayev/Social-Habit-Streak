@@ -2,11 +2,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import Depends
 from app.config import settings
 import jwt
 from pwdlib import PasswordHash
-from fastapi import HTTPException
+from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -16,6 +15,7 @@ from app.models.user import User
 password_hash = PasswordHash.recommended()
 
 bearer_scheme = HTTPBearer()
+
 
 def hash_password(password: str) -> str:
     return password_hash.hash(password)
@@ -31,7 +31,7 @@ def create_token(
     token_type: str,
     extra_claims: dict[str, Any] | None = None
 ) -> str:
-    
+
     now = datetime.now(UTC)
 
     payload: dict[str, Any] = {
@@ -51,7 +51,7 @@ def create_access_token(
     subject: str | int,
     extra_claims: dict[str, Any] | None = None
 ) -> str:
-    
+
     expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     return create_token(subject, expires, "access", extra_claims)
@@ -61,7 +61,7 @@ def create_refresh_token(
     subject: str | int,
     jti: str | None = None
 ) -> str:
-    
+
     expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     token_jti = jti or str(uuid.uuid4())
 
@@ -69,26 +69,34 @@ def create_refresh_token(
 
 
 def decode_token(token: str, expected_type: str) -> dict[str, Any]:
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    payload = jwt.decode(token, settings.SECRET_KEY,
+                         algorithms=[settings.ALGORITHM])
 
     if payload.get("type") != expected_type:
         raise jwt.InvalidTokenError("Wrong token type")
-    
+
     return payload
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials=Depends(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    payload = decode_token(credentials.credentials, "access")
-    id = payload.get("sub")
-    user = db.query(User).filter(User.id == id).first()
+    credentials_errors = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticete": "Bearer"}
+    )
 
-    if not id:
-        raise HTTPException(401, "Invalid token")
-    
-    if not user:
-        raise HTTPException(401, "User not found")
-    
+    try:
+        payload = decode_token(credentials.credentials, "access")
+        user_id = uuid.UUID(payload["sub"])
+    except (jwt.InvalidTokenError, KeyError, ValueError):
+        raise credentials_errors
+
+    user = db.get(User, user_id)
+
+    if user is None:
+        raise credentials_errors
+
     return user
