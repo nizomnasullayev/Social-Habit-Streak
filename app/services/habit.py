@@ -1,0 +1,29 @@
+import uuid
+from sqlalchemy import select
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from app.models.habit import Habit
+from app.models.user import User
+from app.schemas.habit import HabitCreate
+
+
+def get_habit(db: Session, user: User, habit_id: uuid.UUID) -> Habit:
+    stmt = select(Habit).where(Habit.id == habit_id, Habit.user_id == user.id)
+    habit = db.scalar(stmt)
+
+    if habit is None:
+        raise HTTPException(404, "Habit not found")
+    
+    return habit
+
+def create_habit(db: Session, user: User, data: HabitCreate) -> Habit:
+    habit = Habit(
+        user_id = user.id,
+        name = data.name,
+        description = data.description
+    )
+
+    db.add(habit)
+    db.commit()
+    db.refresh(habit)
+    return habit
