@@ -1,12 +1,21 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+from fastapi import Depends
 from app.config import settings
 import jwt
 from pwdlib import PasswordHash
+from fastapi import HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.user import User
 
 password_hash = PasswordHash.recommended()
 
+bearer_scheme = HTTPBearer()
 
 def hash_password(password: str) -> str:
     return password_hash.hash(password)
@@ -66,3 +75,20 @@ def decode_token(token: str, expected_type: str) -> dict[str, Any]:
         raise jwt.InvalidTokenError("Wrong token type")
     
     return payload
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials=Depends(bearer_scheme),
+    db: Session = Depends(get_db)
+) -> User:
+    payload = decode_token(credentials.credentials, "access")
+    id = payload.get("sub")
+    user = db.query(User).filter(User.id == id).first()
+
+    if not id:
+        raise HTTPException(401, "Invalid token")
+    
+    if not user:
+        raise HTTPException(401, "User not found")
+    
+    return user
