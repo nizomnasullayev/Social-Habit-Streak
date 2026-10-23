@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.habit import Habit
 from app.models.user import User
-from app.schemas.habit import HabitCreate
+from app.schemas.habit import HabitCreate, HabitUpdate
 
 
 def get_habit(db: Session, user: User, habit_id: uuid.UUID) -> Habit:
@@ -27,3 +27,24 @@ def create_habit(db: Session, user: User, data: HabitCreate) -> Habit:
     db.commit()
     db.refresh(habit)
     return habit
+
+def list_habits(db: Session, user: User) -> Habit:
+    stmt = select(Habit).where(Habit.user_id == user.id).order_by(Habit.created_at.desc())
+    return list[db.scalars(stmt).all()]
+
+def update_habit(db: Session, user: User, habit_id: uuid.UUID, data: HabitUpdate) -> Habit:
+    habit = get_habit(db, user, habit_id)
+    
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if key in ("name", "is_archived") and value is None:
+            continue
+        setattr(habit, key, value)
+        
+    db.commit()
+    db.refresh(habit)
+    return habit
+
+def delete_habit(db: Session, user: User, habit_id: uuid.UUID) -> Habit:
+    habit = get_habit(db, user, habit_id)
+    db.delete(habit)
+    db.commit()
