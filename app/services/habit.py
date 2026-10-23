@@ -30,7 +30,7 @@ def create_habit(db: Session, user: User, data: HabitCreate) -> Habit:
 
 def list_habits(db: Session, user: User) -> Habit:
     stmt = select(Habit).where(Habit.user_id == user.id).order_by(Habit.created_at.desc())
-    return list[db.scalars(stmt).all()]
+    return list(db.scalars(stmt).all())
 
 def update_habit(db: Session, user: User, habit_id: uuid.UUID, data: HabitUpdate) -> Habit:
     habit = get_habit(db, user, habit_id)
